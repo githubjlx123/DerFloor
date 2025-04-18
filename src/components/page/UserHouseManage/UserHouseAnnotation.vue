@@ -56,8 +56,8 @@
                     <template #header>
                         <div class="card-header">
                             <span>选择房间</span>
-                            <el-tag :type="selectedRoom.isAnnotated ? 'success' : 'danger'">
-                                {{ selectedRoom.isAnnotated ? '已标注' : '未标注' }}
+                            <el-tag :type="selectedRoom.is_label ? 'success' : 'danger'">
+                                {{ selectedRoom.is_label ? '已标注' : '未标注' }}
                             </el-tag>
 
                         </div>
@@ -515,7 +515,7 @@ export default {
                     // 根据响应状态判断保存是否成功
                     if (response.status === 200) {
                         this.$message.success('保存成功');
-                        this.selectedRoom.islabel = 1; // 更新房间的标签状态
+                        this.selectedRoom.is_label = 1; // 更新房间的标签状态
                         this.fetchRoomData(); // 重新加载房间数据
                     } else {
                         this.$message.error(response.msg || '保存失败');
@@ -892,7 +892,8 @@ export default {
             }
 
             // 计算出的面积单位为平方毫米（像素坐标近似毫米），转换为平方米（除以 1,000,000）
-            return Math.round(Math.abs(area / 2) / 1000000);
+            return (Math.abs(area / 2) / 1000000).toFixed(2);
+
         },
 
 // 计算多边形周长的方法（单位为毫米）
@@ -903,14 +904,16 @@ export default {
             let length = 0; // 初始化周长变量
             // 遍历所有点，计算相邻两点之间的距离
             for (let i = 0; i < points.length; i++) {
+                if(points[i].category==='wall'){
                 const j = (i + 1) % points.length;
                 const dx = points[j].x - points[i].x;
                 const dy = points[j].y - points[i].y;
                 length += Math.sqrt(dx * dx + dy * dy);
+                }
             }
 
             // 返回多边形周长（保留一位小数，单位为毫米，可根据需要换算为米）
-            return Math.round(length / 1000); // 转换为米
+            return (length / 1000).toFixed(2); // 转换为米
         },
 
 

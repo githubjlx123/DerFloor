@@ -35,13 +35,13 @@
             </template>
         </el-dialog>
         <div
-            v-if="showContextMenu"
+            v-if="showPointMenu"
             :style="contextMenuStyle"
             class="context-menu"
             @mouseleave="closeContextMenu"
         >
             <el-menu
-                @select="handleMenuSelect"
+                @select="handlePointMenuSelect"
                 class="custom-menu"
             >
                 <el-menu-item index="edit">
@@ -55,6 +55,35 @@
                 <el-menu-item index="setStart">
                     <i class="el-icon-place"></i>
                     <span>设为铺装起点</span>
+                </el-menu-item>
+            </el-menu>
+        </div>
+
+        <div
+            v-if="showLineMenu"
+            :style="contextMenuStyle"
+            class="context-menu"
+            @mouseleave="closeContextMenu"
+        >
+            <el-menu
+                @select="handleLineMenuSelect"
+                class="custom-menu"
+            >
+                <el-menu-item index="setEllipse">
+                    <i class="el-icon-ellipse-check"></i>
+                    <span>设为圆</span>
+                </el-menu-item>
+                <el-menu-item index="setLine">
+                    <i class="el-icon-minus"></i>
+                    <span>设为线</span>
+                </el-menu-item>
+                <el-menu-item index="setWall">
+                    <i class="el-icon-house"></i>
+                    <span>设为墙</span>
+                </el-menu-item>
+                <el-menu-item index="setDoor">
+                    <i class="el-icon-unlock"></i>
+                    <span>设为门</span>
                 </el-menu-item>
             </el-menu>
         </div>
@@ -81,6 +110,27 @@
         <el-button @click="showEditDialog = false">取消</el-button>
         <el-button type="primary" @click="confirmEdit">确定</el-button>
       </span>
+        </el-dialog>
+        <el-dialog
+            title="设置曲线参数"
+            :visible.sync="showCurveDialog"
+            width="300px"
+        >
+            <div>
+                <el-form label-width="80px">
+                    <el-form-item label="轴长">
+                        <el-input-number
+                            v-model="curveAxisLength"
+                            :min="0"
+                            :step="100"
+                        />
+                    </el-form-item>
+                </el-form>
+            </div>
+            <template #footer>
+                <el-button @click="showCurveDialog = false">取消</el-button>
+                <el-button type="primary" @click="confirmCurve">确定</el-button>
+            </template>
         </el-dialog>
     </div>
 </template>
@@ -257,7 +307,12 @@ export default {
                 left: '左',
                 up: '上',
                 down: '下'
-            } // 英文方向与中文的映射（用于界面展示）
+            }, // 英文方向与中文的映射（用于界面展示）
+            selectedLine: null, // 新增选中线段
+            showCurveDialog: false,
+            curveAxisLength: 0,
+            showPointMenu: false,
+            showLineMenu: false,
         };
     },
     mounted() {
@@ -460,31 +515,238 @@ export default {
 
 
         handleCanvasRightClick(e) {
-            e.preventDefault(); // 禁用默认右键菜单
+            e.preventDefault();
 
-            // 获取鼠标点击位置的逻辑坐标
             const rect = this.$refs.canvas.getBoundingClientRect();
             const logicalX = (e.clientX - rect.left - this.offset.x) / this.scale;
             const logicalY = (this.canvasHeight - (e.clientY - rect.top) - this.offset.y) / this.scale;
 
-            const threshold = 5 / this.scale; // 缩放适配后的点击容差
+            const threshold = 5 / this.scale;
 
-            // 查找是否有点位在点击范围内
+            // 检测线段
+            this.selectedLine = this.getClosestLineSegment(logicalX, logicalY);
+
+            // 检测点
             this.selectedPoint = this.localPoints.find(point =>
                 Math.abs(point.x - logicalX) < threshold &&
                 Math.abs(point.y - logicalY) < threshold
             );
 
-            if (this.selectedPoint) {
-                // 如果找到，显示自定义右键菜单
-                this.showContextMenu = true;
+            // 显示相应的菜单
+            if (this.selectedLine) {
+                this.showLineMenu = true;
+                this.showPointMenu = false;
                 this.contextMenuStyle = {
                     left: `${e.clientX}px`,
                     top: `${e.clientY}px`
                 };
-            } else {
-                this.closeContextMenu(); // 否则关闭菜单
             }
+            if (this.selectedPoint) {
+                this.showPointMenu = true;
+                this.showLineMenu = false;
+                this.contextMenuStyle = {
+                    left: `${e.clientX}px`,
+                    top: `${e.clientY}px`
+                };
+            }
+            if(!this.selectedPoint&&!this.selectedLine){
+                this.closeContextMenu();
+            }
+        },
+// 处理点菜单的选择
+        handlePointMenuSelect(command) {
+            switch(command) {
+                case 'edit':
+                    this.showEditDialog = true;
+                    this.editingPoint = {
+                        ...this.selectedPoint,
+                        originalX: this.selectedPoint.x,
+                        originalY: this.selectedPoint.y
+                    };
+                    break;
+                case 'delete':
+                    this.removePoint(this.selectedPoint);
+                    break;
+                case 'setStart':
+                    this.setStartPoint();
+                    break;
+
+            }
+            this.closeContextMenu();
+        },
+
+
+        handleLineMenuSelect(command) {
+            switch(command) {
+                case 'setEllipse':
+                    this.showCurveDialog = true;
+                    break;
+                case 'setLine':
+                    this.setCurveType('line');
+                    break;
+                case 'setDoor':
+                    this.setCategory('door');
+                    break;
+                case 'setWall':
+                    this.setCategory('wall');
+                    break;
+            }
+            this.closeContextMenu();
+        },
+// 在getClosestLineSegment方法中返回点索引
+//         getClosestLineSegment(logicalX, logicalY) {
+//             const threshold = 8 / this.scale;
+//             let closestLine = null;
+//             let minDistance = Infinity;
+//
+//             for (let i = 0; i < this.localPoints.length; i++) {
+//                 const p1 = this.localPoints[i];
+//                 const p2 = this.localPoints[(i + 1) % this.localPoints.length];
+//
+//                 const distance = this.pointToLineDistance(
+//                     {x: logicalX, y: logicalY},
+//                     p1,
+//                     p2
+//                 );
+//
+//                 if (distance < threshold && distance < minDistance) {
+//                     minDistance = distance;
+//                     closestLine = {
+//                         p1,
+//                         p2,
+//                         p1Index: i,          // 新增起点索引
+//                         p2Index: (i + 1) % this.localPoints.length // 新增终点索引
+//                     };
+//                 }
+//             }
+//             return closestLine;
+//         },
+        getClosestLineSegment(x, y) {
+            const threshold = 5 / this.scale;
+            let closestLine = null;
+            let minDistance = Infinity;
+            for (let i = 0; i < this.visiblePoints.length; i++) {
+                const p1 = this.visiblePoints[i];
+                const p2 = this.visiblePoints[(i + 1) % this.visiblePoints.length];
+
+                if (p1.curveType === 'ellipse') {
+                    // 🔥 判断点击点是否在椭圆段附近
+                    if (this.isPointOnEllipseSegment(x, y, p1, p2, threshold)) {
+                        closestLine = {
+                            p1,
+                            p2,
+                            p1Index: i,          // 新增起点索引
+                            p2Index: (i + 1) % this.localPoints.length // 新增终点索引
+                        };
+
+                    }
+                } else {
+                    // 原有的点到线段距离逻辑
+                    const distance = this.pointToLineDistance(
+                        {x: x, y: y},
+                        p1,
+                        p2
+                    );
+                    if (distance < threshold && distance < minDistance) {
+                        minDistance = distance;
+                        closestLine = {
+                            p1,
+                            p2,
+                            p1Index: i,          // 新增起点索引
+                            p2Index: (i + 1) % this.localPoints.length // 新增终点索引
+                        };
+                    }
+
+                }
+            }
+            if( closestLine){
+            return closestLine;}
+            return null;
+        },
+        isPointOnEllipseSegment(x, y, p1, p2, threshold) {
+            const centerX = (p1.x + p2.x) / 2;
+            const centerY = (p1.y + p2.y) / 2;
+
+            const longAxis = this.calculateDistance(p1, p2) / 2;
+            const shortAxis = p1.axisLength;
+            const rotation = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+
+            // 坐标转换，把点旋转到椭圆坐标系
+            const dx = x - centerX;
+            const dy = y - centerY;
+
+            const rotatedX = Math.cos(-rotation) * dx - Math.sin(-rotation) * dy;
+            const rotatedY = Math.sin(-rotation) * dx + Math.cos(-rotation) * dy;
+
+            // 判断点是否在椭圆弧附近
+            const normalized = Math.pow(rotatedX / longAxis, 2) + Math.pow(rotatedY / shortAxis, 2);
+
+            // 弧段是 Math.PI 到 0，所以只考虑上半弧
+            if (rotatedX < -longAxis || rotatedX > longAxis) return false;
+            if (rotatedY > 0) return false;
+
+            return Math.abs(normalized - 1) < (threshold / longAxis); // 判断是否在椭圆边缘附近
+        },
+
+
+// 修改线段类型设置方法
+        setCategory(type) {
+            if (!this.selectedLine) return;
+
+            const point = this.localPoints[this.selectedLine.p1Index];
+
+            // 设置分类
+            point.category = type;
+
+            // 如果传入的 type 与当前曲线类型不同，才修改曲线类型
+            if (type === 'wall') {
+                if (point.curveType !== 'line') {
+                    point.curveType = 'line';
+                }
+            } else {
+                if (point.curveType !== 'dizzale') {
+                    point.curveType = 'dizzale'; // 假设你故意用 dizzale 代替 ellipse
+                }
+            }
+
+            // 触发响应式更新和重绘
+            this.$emit('update:points', [...this.localPoints]);
+            this.redraw();
+        },
+
+        setCurveType(type) {
+            if (!this.selectedLine) return;
+
+            // 直接修改原始点对象
+            this.localPoints[this.selectedLine.p1Index].curveType = type;
+
+            // 触发响应式更新
+            this.$emit('update:points', [...this.localPoints]);
+            this.redraw();
+        },
+
+// 修改确认曲线方法
+        confirmCurve() {
+            if (!this.selectedLine) {
+                this.$message.error('请先选择一条线段！');
+                return;
+            }
+
+            if (isNaN(this.curveAxisLength)) {
+                this.$message.error('请输入有效的长度！');
+                return;
+            }
+
+            // 直接修改原始点对象
+            const p1 = this.localPoints[this.selectedLine.p1Index];
+
+            p1.axisLength = this.curveAxisLength;
+            p1.curveType = 'ellipse';
+
+            // 触发响应式更新
+            this.$emit('update:points', [...this.localPoints]);
+            this.redraw();
+            this.showCurveDialog = false;
         },
 
         confirmDistanceInput() {
@@ -526,26 +788,6 @@ export default {
 
 
 
-        // 菜单选择处理
-        handleMenuSelect(command) {
-            switch(command) {
-                case 'edit': // 编辑点坐标
-                    this.showEditDialog = true;
-                    this.editingPoint = {
-                        ...this.selectedPoint,
-                        originalX: this.selectedPoint.x,
-                        originalY: this.selectedPoint.y
-                    };
-                    break;
-                case 'delete': // 删除选中点
-                    this.removePoint(this.selectedPoint);
-                    break;
-                case 'setStart': // 设置起始点
-                    this.setStartPoint();
-                    break;
-            }
-            this.closeContextMenu(); // 无论执行哪种操作，最终关闭右键菜单
-        },
 
 
         // 设为起始点
@@ -607,13 +849,8 @@ export default {
         },
 
 
-        // 关闭菜单
-        closeContextMenu() {
-            this.showContextMenu = false;
-            this.selectedPoint = null;
-        },
 
-       // 取消距离输入弹窗
+        // 取消距离输入弹窗
         cancelDistanceInput() {
             this.showDistanceDialog = false;
         },
@@ -627,7 +864,11 @@ export default {
                 this.redraw();
             }
         },
-
+        // 关闭菜单
+        closeContextMenu() {
+            this.showPointMenu = false;
+            this.showLineMenu = false;
+        },
         checkAutoOverlap(clickPoint) {
             if (!clickPoint) return false;
 
@@ -693,22 +934,61 @@ export default {
 // 绘制多边形闭合路径
         drawPolygon() {
             this.ctx.beginPath();
+
             this.visiblePoints.forEach((point, index) => {
-                index === 0 ?
-                    this.ctx.moveTo(point.x, point.y) :
-                    this.ctx.lineTo(point.x, point.y);
+                const nextPoint = this.visiblePoints[(index + 1) % this.visiblePoints.length];
+
+                if (index === 0) {
+                    this.ctx.moveTo(point.x, point.y);
+                }
+
+                if (point.curveType === 'ellipse') {
+                    this.drawEllipseSegment(point, nextPoint);
+                } else if (point.category === 'door'&&point.curveType=== 'dizzale') {
+                    this.drawZigzagLine(point, nextPoint);
+                } else {
+                    this.ctx.lineTo(nextPoint.x, nextPoint.y);
+                }
             });
 
-            if (this.visiblePoints.length > 1) {
-                this.ctx.lineTo(this.visiblePoints[0].x, this.visiblePoints[0].y); // 闭合路径
-            }
+            this.ctx.closePath();
 
-            this.ctx.fillStyle = 'rgba(255, 209, 127, 0.5)'; // 填充颜色（半透明）
+            this.ctx.fillStyle = 'rgba(255, 209, 127, 0.5)';
             this.ctx.fill();
-            this.ctx.strokeStyle = 'blue'; // 边框颜色
-            this.ctx.lineWidth = 1 / this.scale; // 缩放比例下的线宽
+            this.ctx.strokeStyle = 'blue';
+            this.ctx.lineWidth = 1 / this.scale;
             this.ctx.stroke();
         },
+
+
+        drawZigzagLine(p1, p2) {
+            const zigzagCount = 10; // 锯齿数量
+            const amplitude = 5 / this.scale; // 锯齿振幅，单位随缩放变化
+
+            const dx = (p2.x - p1.x) / zigzagCount;
+            const dy = (p2.y - p1.y) / zigzagCount;
+
+            for (let i = 0; i <= zigzagCount; i++) {
+                const x = p1.x + dx * i;
+                const y = p1.y + dy * i;
+
+                const offsetX = -dy;
+                const offsetY = dx;
+                const length = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
+
+                const normX = offsetX / length;
+                const normY = offsetY / length;
+
+                const offset = (i % 2 === 0 ? 1 : -1) * amplitude;
+
+                const zx = x + normX * offset;
+                const zy = y + normY * offset;
+
+                this.ctx.lineTo(zx, zy);
+            }
+        },
+
+
 
 // 为每条边添加中间的距离标签
         drawDistanceLabels() {
@@ -886,6 +1166,72 @@ export default {
                 length += Math.sqrt(dx * dx + dy * dy);
             }
             return length;
+        },
+
+
+
+        pointToLineDistance(point, lineP1, lineP2) {
+            const A = point.x - lineP1.x;
+            const B = point.y - lineP1.y;
+            const C = lineP2.x - lineP1.x;
+            const D = lineP2.y - lineP1.y;
+
+            const dot = A * C + B * D;
+            const lenSq = C * C + D * D;
+            let param = -1;
+
+            if (lenSq !== 0) param = dot / lenSq;
+
+            let xx, yy;
+            if (param < 0) {
+                xx = lineP1.x;
+                yy = lineP1.y;
+            } else if (param > 1) {
+                xx = lineP2.x;
+                yy = lineP2.y;
+            } else {
+                xx = lineP1.x + param * C;
+                yy = lineP1.y + param * D;
+            }
+
+            const dx = point.x - xx;
+            const dy = point.y - yy;
+            return Math.sqrt(dx * dx + dy * dy);
+        },
+// 修改drawEllipseSegment方法
+        drawEllipseSegment(p1, p2) {
+            if (!p1.axisLength || p1.axisLength <= 0) return;
+
+            const center = {
+                x: (p1.x + p2.x) / 2,
+                y: (p1.y + p2.y) / 2
+            };
+
+            const longAxis = this.calculateDistance(p1, p2) / 2;
+            const shortAxis = p1.axisLength;
+            const rotation = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+
+            // 🔥 直接把椭圆写入主路径，不 stroke，不 beginPath
+            this.ctx.ellipse(
+                center.x,
+                center.y,
+                longAxis,
+                shortAxis,
+                rotation,
+                Math.PI,
+                0,
+                false
+            );
+        },
+
+
+// 新增线段样式获取方法
+        getSegmentStyle(point) {
+            return {
+                wall: '#409EFF',  // 墙体蓝色
+                door: '#67C23A',  // 门洞绿色
+                curve: '#E6A23C'  // 曲线橙色
+            }[point.category] || '#909399';
         },
 
     }
