@@ -16,12 +16,6 @@
         <div class="coordinate-display">
             坐标：({{ coordinate.x }}, {{ coordinate.y }})
         </div>
-<!--        <div class="zoom-info">缩放: {{ (scale * 100).toFixed(0) }}%</div>-->
-<!--        <div v-if="rooms && selectedRoom" class="room-info-overlay">-->
-<!--            <h4>{{ selectedRoom.name }}</h4>-->
-<!--            <p>面积: {{  formatNumberWithCommas(this.area) }}</p>-->
-<!--            <p>周长: {{ formatNumberWithCommas(this.length )}}</p>-->
-<!--        </div>-->
         <el-dialog
             title="输入距离"
             :visible.sync="showDistanceDialog"
@@ -140,12 +134,15 @@ export default {
         },
     },
     watch: {
-        tempPoint: {
-            validator(value) {
-                return value === null || value instanceof Point;
-            },
-            default: null
+        tempPoint(newVal, oldVal) {
+            if (newVal && newVal.someMethod) {
+                // 调用函数之前确保它是有效的
+                newVal.someMethod.apply(newVal, args);
+            } else {
+                console.warn('someMethod is not defined');
+            }
         },
+
         lastPoint: {
             handler(newVal) {
                 // 这里添加处理逻辑（如有需要）
@@ -153,11 +150,13 @@ export default {
             deep: true,  // 若需要深度监听
             immediate: true  // 若需要立即执行
         },
-        firstPoint: {
-            validator(value) {
-                return value === null || value instanceof Point;
-            },
-            default: null
+        firstPoint(newVal, oldVal) {
+            if (newVal && newVal.someMethod) {
+                // 调用函数之前确保它是有效的
+                newVal.someMethod.apply(newVal, args);
+            } else {
+                console.warn('someMethod is not defined');
+            }
         },
         images: {
             handler(newImages) {
@@ -569,27 +568,39 @@ export default {
 
         // 确认编辑
         confirmEdit() {
-            // 校验输入有效性
-            if (!this.editingPoint || !this.editingPoint.x || !this.editingPoint.y) {
-                this.$message.error('坐标数据异常');
+            const { x, y, originalX, originalY } = this.editingPoint;
+
+            // ✅ 非空 & 数字 校验
+            if (
+                this.editingPoint == null ||
+                x === '' || y === '' ||
+                x == null || y == null ||
+                isNaN(x) || isNaN(y)
+            ) {
+                this.$message.error('请输入有效的 X/Y 坐标！');
                 return;
             }
 
-            // 根据原始坐标找到对应点
-            const targetPoint = this.localPoints.find(p =>
-                p.x === this.editingPoint.originalX &&
-                p.y === this.editingPoint.originalY
+            // ✅ 冲突检测：排除自己（原始坐标的点）
+            const hasConflict = this.localPoints.some(p =>
+                !(p.x === originalX && p.y === originalY) &&
+                this.calculateDistance(p, { x, y }) < 5
             );
 
-            if (targetPoint) {
-                Object.assign(targetPoint, {
-                    x: this.editingPoint.x,
-                    y: this.editingPoint.y
-                });
+            if (hasConflict) {
+                this.$message.error('编辑失败：与其他点冲突！');
+                return;
+            }
 
+            // ✅ 找到原始点并更新
+            const targetPoint = this.localPoints.find(p => p.x === originalX && p.y === originalY);
+
+            if (targetPoint) {
+                Object.assign(targetPoint, { x, y });
                 this.$emit('update:points', this.localPoints);
                 this.redraw();
                 this.showEditDialog = false;
+                this.$message.success('编辑成功！');
             } else {
                 this.$message.warning('未找到对应点位，可能已被删除');
             }
@@ -672,7 +683,7 @@ export default {
             }
         },
 
-// 计算可见点的总长度和面积
+// 计算可见点的总长度和面积/过滤掉不可见点进行绘制操作
         calculateMetrics() {
             this.length = this.calculatePolygonLength(this.localPoints); // 多边形周长
             this.area = this.calculatePolygonArea(this.localPoints);     // 多边形面积

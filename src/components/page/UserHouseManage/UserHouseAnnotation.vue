@@ -56,10 +56,13 @@
                     <template #header>
                         <div class="card-header">
                             <span>选择房间</span>
-                            <span>点集合总数 ({{ selectedRoomData.length }})</span>
+                            <el-tag :type="selectedRoom.isAnnotated ? 'success' : 'danger'">
+                                {{ selectedRoom.isAnnotated ? '已标注' : '未标注' }}
+                            </el-tag>
 
                         </div>
                     </template>
+
                     <el-select
                         v-model="selectedRoomId"
                         placeholder="请选择房间"
@@ -74,7 +77,26 @@
                         />
                     </el-select>
 
+                    <!-- 房间信息显示 -->
+                    <div class="room-info" v-if="selectedRoom" style="margin-top: 5px;">
+                        <!-- 描述列表展示面积和周长，水平排列 -->
+                        <el-descriptions :column="3" size="small" class="custom-descriptions">
+                            <el-descriptions-item label="面积">
+                                <span class="desc-value">{{ formatNumberWithCommas(calculatePolygonArea(selectedRoomData)) }} m²</span>
+                            </el-descriptions-item>
+                            <el-descriptions-item label="周长">
+                                <span class="desc-value">{{ formatNumberWithCommas(calculatePolygonLength(selectedRoomData)) }} m</span>
+                            </el-descriptions-item>
+                            <el-descriptions-item label="坐标点数量">
+                            <span class="desc-value"> {{ selectedRoomData.length }}</span>
+                            </el-descriptions-item>
+                        </el-descriptions>
+
+
+                    </div>
                 </el-card>
+
+
 
 
                 <!-- 使用el-tabs来替代原来的切换按钮 -->
@@ -293,6 +315,31 @@
                             </template>
                         </el-table-column>
                     </el-table>
+                    <el-dialog
+                        title="编辑坐标"
+                        :visible.sync="showEditDialog"
+                        width="30%"
+                    >
+                        <el-form label-width="80px">
+                            <el-form-item label="X坐标">
+                                <el-input-number
+                                    v-model="editingPoint.x"
+                                    :step="100"
+                                />
+                            </el-form-item>
+                            <el-form-item label="Y坐标">
+                                <el-input-number
+                                    v-model="editingPoint.y"
+                                    :step="100"
+                                />
+                            </el-form-item>
+                        </el-form>
+                        <span slot="footer">
+    <el-button @click="showEditDialog = false">取消</el-button>
+    <el-button type="primary" @click="confirmEdit">确定</el-button>
+  </span>
+                    </el-dialog>
+
                 </el-card>
 
 
@@ -352,7 +399,13 @@ export default {
             firstPoint: null, // 第一个添加的点，用于构成封闭路径或作为参考定位点
             show_lastPoint: null, // 用于可视化显示的“最后点”，不一定等于 lastPoint，可能用于辅助渲染
             dragStatus: true, // 拖拽操作状态，true 表示当前允许拖拽，false 表示禁用拖拽
-            drawStatus: false // 绘图模式状态，true 表示当前正在进行绘制操作，false 表示非绘制状态
+            drawStatus: false, // 绘图模式状态，true 表示当前正在进行绘制操作，false 表示非绘制状态
+            showEditDialog: false,
+            editingIndex: null,
+            editingPoint: {
+                x: 0,
+                y: 0
+            },
         };
     },
 
@@ -372,6 +425,7 @@ export default {
     mounted() {
         // 组件挂载完成后，调用方法从后端或其他来源拉取房间数据
         this.fetchRoomData();
+        this.calculatePolygonLength(points)
         // 添加键盘监听事件，用于响应用户快捷键操作（如删除、移动等）
         window.addEventListener('keydown', this.handleKeyPress);
     },
@@ -750,15 +804,53 @@ export default {
 
         // 编辑点的坐标
         editPoint(index) {
-            const newX = prompt('请输入新的X坐标：', this.selectedRoomData[index].x);
-            const newY = prompt('请输入新的Y坐标：', this.selectedRoomData[index].y);
-            // 如果用户输入了新坐标，更新点的坐标并重新绘制画布
-            if (newX !== null && newY !== null) {
-                this.selectedRoomData[index].x = Number(newX);
-                this.selectedRoomData[index].y = Number(newY);
+            this.editingIndex = index; // 保存当前要编辑的点的索引
+            this.editingPoint = { ...this.selectedRoomData[index] }; // 复制当前点数据，防止直接修改
+            this.showEditDialog = true; // 打开弹窗
+        },
+
+        confirmEdit() {
+            if (this.editingIndex !== null) {
+                const tempPoint = { ...this.editingPoint };
+
+                // ✅ 空值或非法值校验
+                if (
+                    tempPoint.x === null ||
+                    tempPoint.y === null ||
+                    tempPoint.x === '' ||
+                    tempPoint.y === '' ||
+                    isNaN(tempPoint.x) ||
+                    isNaN(tempPoint.y)
+                ) {
+                    this.$message.warning("请输入有效的 X/Y 坐标！");
+                    return;
+                }
+
+                // ✅ 判断是否与其他点冲突
+                const conflict = this.selectedRoomData.some((point, index) => {
+                    return index !== this.editingIndex &&
+                        this.calculateDistance(point, tempPoint) < 5;
+                });
+
+                if (conflict) {
+                    this.$message.error("编辑失败：与其他点坐标冲突！");
+                    return;
+                }
+
+                // ✅ 更新点数据
+                this.$set(this.selectedRoomData, this.editingIndex, {
+                    ...this.selectedRoomData[this.editingIndex],
+                    x: Number(tempPoint.x),
+                    y: Number(tempPoint.y)
+                });
+
                 this.$refs.drawingCanvas.redraw();
+                this.$message.success("编辑成功！");
+                this.showEditDialog = false;
             }
         },
+
+
 
         // 移除指定的点
         removePoint(index) {
@@ -787,8 +879,9 @@ export default {
             return cellValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
         },
 
-          // 计算多边形面积（使用Shoelace公式）
+// 计算多边形面积的方法（结果为平方米）
         calculatePolygonArea(points) {
+            // 如果传入的点数少于3个，无法形成多边形，直接返回0
             if (points.length < 3) return 0;
 
             let area = 0;
@@ -798,11 +891,11 @@ export default {
                 area -= points[j].x * points[i].y;
             }
 
-            return Math.abs(area / 2);
+            // 计算出的面积单位为平方毫米（像素坐标近似毫米），转换为平方米（除以 1,000,000）
+            return Math.round(Math.abs(area / 2) / 1000000);
         },
-        // 数字格式修改
 
-        // 计算多边形周长的方法
+// 计算多边形周长的方法（单位为毫米）
         calculatePolygonLength(points) {
             // 如果传入的点数少于2个，无法形成多边形，直接返回0
             if (points.length < 2) return 0;
@@ -810,18 +903,16 @@ export default {
             let length = 0; // 初始化周长变量
             // 遍历所有点，计算相邻两点之间的距离
             for (let i = 0; i < points.length; i++) {
-                // 计算下一个点的索引，注意如果是最后一个点，则与第一个点连线
                 const j = (i + 1) % points.length;
-                // 计算当前点和下一个点之间的横坐标差
                 const dx = points[j].x - points[i].x;
-                // 计算当前点和下一个点之间的纵坐标差
                 const dy = points[j].y - points[i].y;
-                // 使用勾股定理计算两点之间的距离，并将其加到总长度上
                 length += Math.sqrt(dx * dx + dy * dy);
             }
-            // 返回计算出的多边形周长
-            return length;
+
+            // 返回多边形周长（保留一位小数，单位为毫米，可根据需要换算为米）
+            return Math.round(length / 1000); // 转换为米
         },
+
 
 // 确认操作的方法
         handleConfirmAction() {
@@ -857,9 +948,12 @@ export default {
                 user_id: this.user_id,  // 当前用户ID
                 house_id: this.house_id  // 当前房屋ID
             };
-            let url = this.$serverUrl + 'getAnnotationHouseById'
+            // let url = this.$serverUrl + 'getAnnotationHouseById'
+            // // 通过axios向服务器发送POST请求，获取房间数据
+            // axios.post(url, requestBody)
             // 通过axios向服务器发送POST请求，获取房间数据
-            axios.post(url, requestBody)
+            let ur
+            axios.post('http://192.168.51.67:8888/getAnnotationHouseById', requestBody)
                 .then(response => {
                     const { status, msg, data } = response.data; // 解构响应数据
                     if (status === 200) {
@@ -962,6 +1056,14 @@ export default {
     width: 220px !important;  /* 固定宽度 */
 }
 
+ .custom-descriptions .el-descriptions__body {
+     column-gap: 20px; /* 控制两列之间的间距 */
+ }
+
+.desc-value {
+    color: #303133;
+    font-weight: bold;
+}
 /* 操作按钮容器 */
 .form-action {
     position: relative;

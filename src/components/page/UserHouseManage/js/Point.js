@@ -6,8 +6,9 @@ export default class Point {
         this.visible = true; // 默认点是可见的
         this.radius = 20; // 设置点的半径，默认为20
         this.color = 'red'; // 设置点的颜色，默认为红色
-        this.type = 'line'; // 设置点的类型，默认为 'line'，也可以是 'circle'
         this.category = 'wall'; // 设置点的类别，默认为 'wall'，可以根据需求更改
+        this.curveType = 'line'; // line | ellipse
+        this.axisLength = 0;     // 短轴长度
     }
 
     // 绘制点的方法
