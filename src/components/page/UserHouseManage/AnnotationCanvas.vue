@@ -335,6 +335,9 @@ export default {
         });
 
         // 鼠标离开画布时标记状态并重绘
+        this.$refs.canvas.addEventListener('mousemove', this.handleMouseMove);
+        this.$refs.canvas.addEventListener('mousedown', this.handleMouseDown);
+        this.$refs.canvas.addEventListener('mouseup', this.handleMouseUp);
         canvas.addEventListener("mouseleave", () => {
             this.isMouseInCanvas = false;
             this.redraw();
@@ -349,8 +352,8 @@ export default {
 
     methods: {
         updateCanvasSize() {
-            const containerWidth = window.innerWidth * 0.58; // 设置 canvas 宽度为窗口的 58%
-            const containerHeight = window.innerHeight * 0.82; // 设置高度为 82%
+            const containerWidth = window.innerWidth * 0.59; // 设置 canvas 宽度为窗口的 58%
+            const containerHeight = window.innerHeight * 0.84; // 设置高度为 82%
             this.canvasWidth = containerWidth;
             this.canvasHeight = containerHeight;
             this.redraw(); // 更新画布内容
@@ -396,7 +399,16 @@ export default {
         handleMouseMove(e) {
             // 获取 canvas 在页面中的位置信息
             const rect = this.$refs.canvas.getBoundingClientRect();
-
+            // ✨ 动态设置鼠标样式：正在拖拽 => grabbing；否则若处于拖拽状态 => grab
+            if (this.isDragging) {
+                this.$refs.canvas.style.cursor = 'grabbing';
+            } else if (this.dragStatus) {
+                this.$refs.canvas.style.cursor = 'grab';
+            } else if (this.drawStatus) {
+                this.$refs.canvas.style.cursor = 'crosshair';
+            } else {
+                this.$refs.canvas.style.cursor = 'default';
+            }
             // 将鼠标位置从屏幕坐标转换为逻辑坐标（考虑缩放和平移）
             const x = (e.clientX - rect.left - this.offset.x) / this.scale;
             const y = (this.canvasHeight - (e.clientY - rect.top) - this.offset.y) / this.scale;
@@ -483,9 +495,19 @@ export default {
         },
 
         //鼠标的释放处理函数
-        handleMouseUp() {
-            this.isDragging = false; // 停止拖拽
-            this.$refs.canvas.style.cursor = 'crosshair'; // 恢复鼠标样式
+        // handleMouseUp() {
+        //     this.isDragging = false; // 停止拖拽
+        //     this.$refs.canvas.style.cursor = 'crosshair'; // 恢复鼠标样式
+        // },
+        handleMouseUp(e) {
+            if (this.isDragging) {
+                this.isDragging = false;
+                if (this.dragStatus) {
+                    this.$refs.canvas.style.cursor = 'grab'; // 拖拽释放后变回 grab
+                } else {
+                    this.$refs.canvas.style.cursor = 'default';
+                }
+            }
         },
 
         // 修改后的滚轮缩放处理
@@ -1251,9 +1273,9 @@ export default {
 
 
 canvas {
-    border: 2px solid #ccc;
+    border: 2px solid #9c8c8e;
     border-radius: 8px;
-    background-color: #f5f5f5;
+    background-color: #ffffff;
     cursor: crosshair;
 }
 .context-menu {

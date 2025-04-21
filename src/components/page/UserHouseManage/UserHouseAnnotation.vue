@@ -51,7 +51,7 @@
         </div>
 
         <div class="sidebar-right">
-            <div class="commentResult">
+            <div class="commentResult1">
                 <el-card class="room-selection">
                     <template #header>
                         <div class="card-header">
@@ -147,41 +147,68 @@
 
                             <el-form-item class="direction-buttons">
                                 <div class="direction" >
-                                    <div class="direction-container">
+
                                         <!-- 上下左右方向键 -->
-                                        <div class="direction-keyboard">
-                                            <div class="direction-row">
+                                        <div class="direction-pad-container">
+                                            <div class="direction-pad">
+                                                <!-- 左上 -->
                                                 <el-button
-                                                    type="primary"
+                                                    icon="el-icon-top-left"
+                                                    @click="movePoint('up-left')"
+                                                    class="direction-btn up-left"
+                                                />
+                                                <!-- 上 -->
+                                                <el-button
                                                     icon="el-icon-top"
                                                     @click="movePoint('up')"
-                                                >上
-                                                </el-button>
-                                            </div>
-                                            <div class="direction-row">
+                                                    class="direction-btn up"
+                                                />
+                                                <!-- 右上 -->
                                                 <el-button
-                                                    type="primary"
+                                                    icon="el-icon-top-right"
+                                                    @click="movePoint('up-right')"
+                                                    class="direction-btn up-right"
+                                                />
+                                                <!-- 左 -->
+                                                <el-button
                                                     icon="el-icon-back"
                                                     @click="movePoint('left')"
-                                                >左
-                                                </el-button>
+                                                    class="direction-btn left"
+                                                />
+                                                <!-- 复位 -->
                                                 <el-button
-                                                    type="primary"
+                                                    icon="el-icon-refresh-left"
+                                                    :disabled="!tempPoint"
+                                                    @click="quitTempPoint"
+                                                    class="reduce-btn reduce"
+                                                />
+                                                <!-- 右 -->
+                                                <el-button
                                                     icon="el-icon-right"
                                                     @click="movePoint('right')"
-                                                >右
-                                                </el-button>
-                                            </div>
-                                            <div class="direction-row">
+                                                    class="direction-btn right"
+                                                />
+                                                <!-- 左下 -->
                                                 <el-button
-                                                    type="primary"
+                                                    icon="el-icon-bottom-left"
+                                                    @click="movePoint('down-left')"
+                                                    class="direction-btn down-left"
+                                                />
+                                                <!-- 下 -->
+                                                <el-button
                                                     icon="el-icon-bottom"
                                                     @click="movePoint('down')"
-                                                >下
-                                                </el-button>
+                                                    class="direction-btn down"
+                                                />
+                                                <!-- 右下 -->
+                                                <el-button
+                                                    icon="el-icon-bottom-right"
+                                                    @click="movePoint('down-right')"
+                                                    class="direction-btn down-right"
+                                                />
                                             </div>
                                         </div>
-                                    </div>
+
                                     <!-- 确认和取消按钮 -->
 
 
@@ -199,17 +226,17 @@
                                     <el-button
                                         v-if="!autoAddMode"
                                         type="danger"
-                                        icon="el-icon-close"
+
                                         :disabled="!tempPoint"
                                         @click="quitTempPoint"
                                         class="cancel-btn"
                                     >
-                                        取消添加
+                                        取消
                                     </el-button>
                                 </div>
 
                             </el-form-item>
-
+                            <!--      icon="el-icon-close"-->
                         </el-form>
                     </el-tab-pane>
                     <!-- 插入点功能 -->
@@ -264,23 +291,31 @@
                     </el-tab-pane>
                 </el-tabs>
 
-                <el-card class="resultArea1">
+                <el-card class="resultArea1" :body-style="{ padding: '0px 10px 20px 10px' }">
                     <el-table
                         :data="selectedRoomData"
                         border
-                        height="300px"
+                        height="250px"
                         style="width: 100%"
                     >
-                        <el-table-column label="序号" align="center">
+                        <el-table-column label="序号" align="center" :width="calcVW(3)">
                             <template #default="{ $index }">
                                 {{ $index + 1 }}
                             </template>
                         </el-table-column>
+                        <el-table-column label="X坐标" align="center" :width="calcVW(3.5)">
+                            <template #default="{ row }">
+                                {{ row.x }}
+                            </template>
+                        </el-table-column>
 
-                        <el-table-column prop="x" label="X坐标" align="center" />
-                        <el-table-column prop="y" label="Y坐标" align="center" />
+                        <el-table-column label="Y坐标" align="center" :width="calcVW(3.5)">
+                            <template #default="{ row }">
+                                {{ row.y }}
+                            </template>
+                        </el-table-column>
 
-                        <el-table-column label="显隐" align="center">
+                        <el-table-column label="显隐" align="center" :width="calcVW(3.5)">
                             <template #default="{ row, $index }">
                                 <el-switch
                                     v-model="row.visible"
@@ -291,29 +326,35 @@
                             </template>
                         </el-table-column>
 
-                        <el-table-column label="编辑" width="60" align="center">
+                        <el-table-column label="编辑" align="center" :width="calcVW(3)">
                             <template #default="{ $index }">
-                                <el-button
-                                    type="primary"
-                                    icon="el-icon-edit"
-                                    size="mini"
-                                    circle
-                                    @click="editPoint($index)"
-                                />
+                                <div style="display: flex; justify-content: center;">
+                                    <el-button
+                                        type="primary"
+                                        icon="el-icon-edit"
+                                        size="mini"
+                                        circle
+                                        @click="editPoint($index)"
+                                    />
+                                </div>
                             </template>
                         </el-table-column>
 
-                        <el-table-column label="删除" width="65" align="center">
+                        <el-table-column label="删除" align="center" :width="calcVW(3.2)">
                             <template #default="{ $index }">
-                                <el-button
-                                    type="danger"
-                                    icon="el-icon-delete"
-                                    size="mini"
-                                    circle
-                                    @click="removePoint($index)"
-                                />
+                                <div style="display: flex; justify-content: center;">
+                                    <el-button
+                                        type="danger"
+                                        icon="el-icon-delete"
+                                        size="mini"
+                                        circle
+                                        @click="removePoint($index)"
+                                    />
+                                </div>
                             </template>
                         </el-table-column>
+
+
                     </el-table>
                     <el-dialog
                         title="编辑坐标"
@@ -465,6 +506,9 @@ export default {
     },
 
     methods: {
+        calcVW(vw) {
+            return window.innerWidth * (vw / 100); // 返回 px
+        },
         // 修改后的保存方法
         handleSave() {
             // 判断是否选择了房间，如果没有选择房间，则提示错误信息
@@ -488,13 +532,17 @@ export default {
             });
 
             // 整理数据：将 selectedRoomData 中的点数据转换为二维数组的格式
-            let sendPoints = []
-            for (let i = 0; i < this.selectedRoomData.length; i++) {
-                let tempPoint = []
-                tempPoint.push(this.selectedRoomData[i].x)
-                tempPoint.push(this.selectedRoomData[i].y)
-                sendPoints.push(tempPoint)
-            }
+            let sendPoints = this.selectedRoomData.map(p => {
+                const point = new Point(p.x, p.y);
+                point.category = p.category;
+                point.curveType = p.curveType;
+                point.axisLength = p.axisLength;
+                // point.visible = p.visible;     可以不存储，前端获取时给默认值
+                // point.radius = p.radius;
+                // point.color = p.color;
+                return point;
+            });
+
 
             // 构造请求数据，包括房间的坐标、面积、长度等信息
             const requestData = {
@@ -695,6 +743,11 @@ export default {
 
         // 移动点的操作
         movePoint(direction) {
+            if(this.drawStatus){
+                this.drawStatus=false;
+                this.dragStatus=true;
+                this.isFocus ='toolDrag';
+            }
             // 将所有点设置为可见
             this.selectedRoomData.forEach(point => {
                 point.visible = true;
@@ -737,7 +790,24 @@ export default {
                 case 'right':
                     newPoint.x += distance;
                     break;
+                case 'up-left':
+                    newPoint.x -= distance;
+                    newPoint.y += distance;
+                    break;
+                case 'up-right':
+                    newPoint.x += distance;
+                    newPoint.y += distance;
+                    break;
+                case 'down-left':
+                    newPoint.x -= distance;
+                    newPoint.y -= distance;
+                    break;
+                case 'down-right':
+                    newPoint.x += distance;
+                    newPoint.y -= distance;
+                    break;
             }
+
 
             // 自动模式下处理逻辑
             if (this.autoAddMode) {
@@ -951,12 +1021,13 @@ export default {
                 user_id: this.user_id,  // 当前用户ID
                 house_id: this.house_id  // 当前房屋ID
             };
-            // let url = this.$serverUrl + 'getAnnotationHouseById'
-            // // 通过axios向服务器发送POST请求，获取房间数据
-            // axios.post(url, requestBody)
+            let url = this.$serverUrl + 'getAnnotationHouseById'
             // 通过axios向服务器发送POST请求，获取房间数据
-            let ur
-            axios.post('http://192.168.51.67:8888/getAnnotationHouseById', requestBody)
+
+            //通过axios向服务器发送POST请求，获取房间数据
+            // axios.post('http://192.168.51.67:8888/getAnnotationHouseById', requestBody)
+
+            axios.post(url, requestBody)
                 .then(response => {
                     const { status, msg, data } = response.data; // 解构响应数据
                     if (status === 200) {
@@ -1034,15 +1105,19 @@ export default {
 }
 
 .sidebar-right {
-    position: absolute; /* 或 fixed，看你是否希望它随页面滚动 */
-    right: 0;            /* 紧贴右边 */
-    top:4rem;
-    width: 450px;
-    height: 100vh;       /* 全屏高度 */
-    //width: 20vw;
+    position: absolute;   /* 或 fixed */
+    left: calc(64vw);     /* 主区域右边 */
+    top: 5rem;
+    width: calc(21vw);
+    height: 100vh;
 }
+.resultArea1{
+    height: 280px;
+    padding: 0;
+}
+
 /* 新增：布局容器 */
-.commentResult {
+.commentResult1 {
     display: flex;
     flex-direction: column;
     gap: 1rem;
@@ -1107,6 +1182,65 @@ export default {
     top: -1px;
 }
 
+.direction-pad-container {
+    border: 2px solid #dcdfe6;
+    border-radius: 12px;
+    //padding: 20px;
+    display: inline-block;
+
+
+}
+
+.direction-pad {
+    display: grid;
+    grid-template-columns: repeat(3,53px);
+    grid-template-rows: repeat(3, 45px);
+    justify-content: center;
+    align-items: center;
+}
+
+/* 给所有按钮统一样式 */
+.direction-btn {
+    width: 35px;
+    height: 35px;
+    padding: 0;
+    border-radius:10px;
+    background-color: #409EFF; /* primary 按钮背景色 */
+    color: #fff;               /* primary 按钮字体颜色 */
+    transition: all 0.2s ease;
+}
+.reduce-btn {
+    width: 35px;
+    height: 35px;
+    padding: 0;
+    border-radius: 50%; /* 设置为圆形 */
+    background-color: #409EFF; /* primary 按钮背景色 */
+    color: #fff; /* 字体颜色 */
+    transition: all 0.2s ease;
+}
+
+/deep/ .el-table__body-wrapper::-webkit-scrollbar-thumb {
+    background-color: #dde;
+    border-radius: 3px;
+}
+/* 鼠标悬停效果 */
+.direction-btn:hover {
+    background-color: #66b1ff; /* primary 按钮悬停时的颜色 */
+    box-shadow: 0 2px 12px rgba(64, 158, 255, 0.4); /* 悬停时的光晕阴影 */
+}
+/* 定位按钮 */
+.up-left {
+    grid-area: 1 / 1;
+    margin-left: 8px;
+}
+.up           { grid-area: 1 / 2; }
+.up-right     { grid-area: 1 / 3; }
+.left         { grid-area: 2 / 1; }
+.right        { grid-area: 2 / 3; }
+.reduce        { grid-area: 2 / 2; }
+.down-left    { grid-area: 3 / 1; }
+.down         { grid-area: 3 / 2; }
+.down-right   { grid-area: 3 / 3; }
 
 /* 在style部分添加 */
 .temp-coordinate {
@@ -1233,8 +1367,8 @@ export default {
 }
 .direction-keyboard {
     flex: 0.5;
-    margin-left:20px;
-    margin-right: 25px;
+    margin-left:15px;
+    margin-right: 20px;
 }
 
 .direction-row {
@@ -1250,13 +1384,14 @@ export default {
 
 .add-btn {
     margin-top: 50px;
+    margin-left: 10px;
     width: 100px;
     height:40px ;
 }
 
 .cancel-btn {
     margin-top: 50px;
-    width: 100px;
+    width: 60px;
     height:40px ;
 }
 .tool-divider {
